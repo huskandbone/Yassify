@@ -1,0 +1,28 @@
+[
+  {
+    "Author": "Husk & Bone",
+    "Name": "Yassify",
+    "InternalName": "Yassify",
+    "AssemblyVersion": "0.1.0.0",
+    "Description": "Pick a piece you're wearing (from a Penumbra mod) and give it YAS jiggle copied from the YAS body you have on, with live sliders per area - butt, chest, belly, thighs and more. Choose how it fits: as made, hugging the skin (leggings, bodysuits) or flowy (skirts, dresses). Tops and bottoms made for one Neolithe shape can be refit to another (XS - L, Almond, Hazelnut, Macadamia, Pushup, Neobelly, Buff...). Everything shows on your character live; nothing is written until you press Save, and the old file is backed up first so you can put it back.",
+    "ApplicableVersion": "any",
+    "RepoUrl": "https://github.com/huskandbone/Yassify",
+    "Tags": [
+      "penumbra",
+      "modding",
+      "yas",
+      "neolithe"
+    ],
+    "DalamudApiLevel": 15,
+    "LoadPriority": 0,
+    "IconUrl": "https://raw.githubusercontent.com/huskandbone/Yassify/main/images/icon.png",
+    "Punchline": "Make your outfits jiggle like your YAS body does - and refit Neolithe pieces to your size.",
+    "AcceptsFeedback": false,
+    "IsHide": false,
+    "IsTestingExclusive": false,
+    "DownloadLinkInstall": "https://github.com/huskandbone/Yassify/releases/latest/download/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/huskandbone/Yassify/releases/latest/download/latest.zip",
+    "DownloadLinkTesting": "https://github.com/huskandbone/Yassify/releases/latest/download/latest.zip",
+    "LastUpdate": 1795299160
+  }
+]

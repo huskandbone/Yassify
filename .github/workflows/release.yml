@@ -1,0 +1,50 @@
+# Push a tag like v0.1.1 and this builds Yassify, attaches latest.zip to a GitHub release, and bumps repo.json so
+# everyone who added the repo to Dalamud gets the update.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Get Dalamud
+        run: |
+          curl -sSL -o dalamud.zip https://goatcorp.github.io/dalamud-distrib/latest.zip
+          mkdir -p "$RUNNER_TEMP/dalamud"
+          unzip -q dalamud.zip -d "$RUNNER_TEMP/dalamud"
+          echo "DALAMUD_HOME=$RUNNER_TEMP/dalamud/" >> "$GITHUB_ENV"
+
+      - name: Build
+        run: dotnet build Yassify/Yassify.csproj -c Release
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Yassify/bin/Release/Yassify/latest.zip
+          generate_release_notes: true
+
+      - name: Update repo.json on main
+        run: |
+          cp Yassify/bin/Release/Yassify/Yassify.json "$RUNNER_TEMP/built.json"
+          git fetch origin main
+          git checkout main
+          python3 scripts/update_repo_json.py "$RUNNER_TEMP/built.json" "$GITHUB_REPOSITORY"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add repo.json
+          git diff --cached --quiet || git commit -m "repo.json: ${GITHUB_REF_NAME}"
+          git push origin main
