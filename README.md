@@ -62,4 +62,4 @@ Made by **Husk & Bone**. Yassify's engine - the weights, the fits, the refit and
 
 You need the .NET 10 SDK and Dalamud's dev files. On Windows with XIVLauncher installed, `dotnet build -c Release` in `Yassify/` just works. Anywhere else, unzip [Dalamud's latest.zip](https://goatcorp.github.io/dalamud-distrib/latest.zip) and point `DALAMUD_HOME` at it first. The package lands in `Yassify/bin/Release/Yassify/latest.zip`.
 
-To release: raise `<Version>` in `Yassify/Yassify.csproj`, commit, and push a tag like `v0.1.1`. GitHub Actions builds it, attaches `latest.zip` to a release, and updates `repo.json` so everyone gets the update.
+To release: raise `<Version>` in `Yassify/Yassify.csproj` and push to `main` (or press **Run workflow** under Actions > Release). GitHub Actions builds it, makes a release with `latest.zip`, and updates `repo.json` so everyone gets the update. A version that already has a release is skipped.
