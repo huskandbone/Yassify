@@ -1,6 +1,7 @@
-# Raise <Version> in Yassify/Yassify.csproj and push (or press "Run workflow" under Actions > Release): this builds Yassify,
-# makes a GitHub release vX.Y.Z with latest.zip, and bumps repo.json so everyone who added the repo to Dalamud gets the
-# update. A version that already has a release is skipped.
+# Raise <Version> in Yassify/Yassify.csproj, add a "## X.Y.Z" section to CHANGELOG.md and push (or press "Run workflow"
+# under Actions > Release): this builds Yassify, makes a GitHub release vX.Y.Z with latest.zip and that section as its
+# notes, and bumps repo.json (with the same notes) so everyone who added the repo to Dalamud gets the update. A version
+# that already has a release is skipped; a version with no CHANGELOG.md section stops before releasing.
 name: Release
 
 on:
@@ -51,6 +52,10 @@ jobs:
         if: steps.ver.outputs.new == 'true'
         run: dotnet build Yassify/Yassify.csproj -c Release
 
+      - name: Release notes (this version's part of CHANGELOG.md)
+        if: steps.ver.outputs.new == 'true'
+        run: python3 scripts/changelog.py "${{ steps.ver.outputs.version }}" > "$RUNNER_TEMP/notes.md"
+
       - name: Release
         if: steps.ver.outputs.new == 'true'
         uses: softprops/action-gh-release@v2
@@ -59,7 +64,7 @@ jobs:
           name: Yassify ${{ steps.ver.outputs.version }}
           target_commitish: ${{ github.sha }}
           files: Yassify/bin/Release/Yassify/latest.zip
-          generate_release_notes: true
+          body_path: ${{ runner.temp }}/notes.md
 
       - name: Update repo.json on main
         if: steps.ver.outputs.new == 'true'

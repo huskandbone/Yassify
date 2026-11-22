@@ -552,11 +552,36 @@ public sealed class MdlFile
         return true;
     }
 
+    /// <summary>A weights or bone-numbers element that holds 4 to a point. The game's own files keep 4 weights as type 8;
+    /// some exporters write them as type 5 (0.1.1: those were skipped, so only the bone numbers went to 8 and the game
+    /// misread the piece - creases wherever a bone moves, the chest first).</summary>
+    static bool FourWide(VElement e) =>
+        (e.Usage == (byte)VUsage.BlendWeights && (e.Type == 8 || e.Type == 5)) || (e.Usage == (byte)VUsage.BlendIndices && e.Type == 5);
+
+    /// <summary>True when a mesh keeps its weights and its bone numbers at different counts per point (4 and 8) - what
+    /// 0.1.0 left on pieces with type-5 weights.</summary>
+    public bool MixedWeights(int mesh)
+    {
+        var we = Element(mesh, VUsage.BlendWeights);
+        var ie = Element(mesh, VUsage.BlendIndices);
+        return we != null && ie != null && TypeSize(we.Type) != TypeSize(ie.Type);
+    }
+
+    public bool AnyMixedWeights
+    {
+        get
+        {
+            for (int mi = 0; mi < Meshes.Count; mi++) if (MixedWeights(mi)) return true;
+            return false;
+        }
+    }
+
     /// <summary>Changes 4-weight vertices to 8 weights (DT's format) so a
     /// vertex can hold more bones. Rebuilds the vertex buffers; indices and
     /// everything else stay as they are. Returns false if the layout isn't one
-    /// this can rebuild.</summary>
-    public bool WidenTo8(out string why)
+    /// this can rebuild. onlyMixed: just the meshes whose weights and bone
+    /// numbers don't match (MixedWeights), the rest stay as they are.</summary>
+    public bool WidenTo8(out string why, bool onlyMixed = false)
     {
         if (!CanRebuildData(out why)) return false;
         bool any = false;
@@ -568,8 +593,9 @@ public sealed class MdlFile
             var els = new List<VElement>();
             foreach (var e in me.Elements) els.Add(e.Clone());
             bool widen = false;
-            foreach (var e in els)
-                if ((e.Usage == (byte)VUsage.BlendWeights && e.Type == 8) || (e.Usage == (byte)VUsage.BlendIndices && e.Type == 5)) widen = true;
+            if (!onlyMixed || MixedWeights(mi))
+                foreach (var e in els)
+                    if (FourWide(e)) widen = true;
             var stride = (byte[])me.Stride.Clone();
             if (widen)
             {
@@ -585,7 +611,7 @@ public sealed class MdlFile
                     foreach (var e in inStream)
                     {
                         e.Offset = (byte)(e.Offset + grow);
-                        if ((e.Usage == (byte)VUsage.BlendWeights && e.Type == 8) || (e.Usage == (byte)VUsage.BlendIndices && e.Type == 5))
+                        if (FourWide(e))
                         {
                             e.Type = 17;
                             grow += 4;

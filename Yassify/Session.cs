@@ -18,6 +18,10 @@ public sealed class Session : IDisposable
     public byte[] Original = Array.Empty<byte>();     // the file as opened (edits start from this)
     public string DiskSha = "";                       // what the file on disk is now
     public MdlFile? Model;                            // parsed original, for the parts list
+    /// <summary>0.1.1: the opened file has the half-done 8-bone change 0.1.0 left (weights 4, bone numbers 8 to a point).</summary>
+    public bool NeedsRepair => Model != null && !_repairSaved && Model.AnyMixedWeights;
+    bool _repairSaved;                                // this session's save already put it right on disk
+    public const string RepairHint = "This piece was saved by an older Yassify that left its 8-bone change half done (it can crease in game). Save into my mod to fix it.";
     public EditSettings Edit = new();
     public EditResult? Last;
     public string Status = "";
@@ -75,10 +79,11 @@ public sealed class Session : IDisposable
         {
             Original = File.ReadAllBytes(item.FullPath);
             Model = MdlFile.Read(Original);
+            _repairSaved = false;
             DiskSha = BackupStore.Sha(Original);
             Item = item;
             Edit = NewEdit(item);
-            Last = null; Error = ""; Status = $"Opened {item.Label}."; SavedAt = null;
+            Last = null; Error = ""; Status = NeedsRepair ? RepairHint : $"Opened {item.Label}."; SavedAt = null;
             _cache.Clear();
             _p.BodyFor(item.Race);
             LoadOtherSkin(item);
@@ -305,7 +310,7 @@ public sealed class Session : IDisposable
                 {
                     if (Item != item) return;
                     Last = r; Error = "";
-                    Status = settings.Any ? Summary(r) : "No changes yet.";
+                    Status = settings.Any ? Summary(r) : NeedsRepair ? RepairHint : "No changes yet.";
                     if (preview && file != null)
                     {
                         var map = item.GamePaths.ToDictionary(g => g, _ => file);
@@ -378,13 +383,16 @@ public sealed class Session : IDisposable
                 var check = MdlFile.Read(r.Bytes);
                 if (!check.Write().AsSpan().SequenceEqual(r.Bytes)) throw new IOException("The edited model didn't read back the same - not saved.");
                 _p.Backups.KeepPerFile = _p.Config.KeepBackups;
-                _p.Backups.SaveInto(modRoot, item.ModDir, item.ModName, item.RelPath, r.Bytes, expect, Describe(settings), SavedYas.From(settings));
+                string note = Describe(settings);
+                if (r.Repaired) note = note == "saved" ? "8-bone fix" : note + ", 8-bone fix";   // shown in the Backups list
+                _p.Backups.SaveInto(modRoot, item.ModDir, item.ModName, item.RelPath, r.Bytes, expect, note, SavedYas.From(settings));
                 _p.Framework.RunOnFrameworkThread(() =>
                 {
                     // the edits stay, still worked out from the file as it was opened - so tweaking and saving again
                     // replaces this save instead of piling onto it
                     DiskSha = BackupStore.Sha(r.Bytes);
                     Last = r;
+                    _repairSaved = true;
                     _p.Penumbra.StopPreview();
                     _p.Penumbra.ReloadMod(item.ModDir);
                     _p.Penumbra.RedrawPlayer();

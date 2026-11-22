@@ -476,7 +476,7 @@ public sealed class MainWindow : Window
         ImGui.Separator();
         if (s.Error.Length > 0) Theme.IconText(FontAwesomeIcon.HeartCircleExclamation, s.Error, Theme.Rose, Theme.Rose);
         else if (s.Busy) Theme.IconText(FontAwesomeIcon.Sync, "Working on it...", Theme.Lilac, Theme.Muted);
-        else Theme.Wrapped(s.Status, s.Status.StartsWith("Saved") ? Theme.Mint : Theme.Muted);
+        else Theme.Wrapped(s.Status, s.Status.StartsWith("Saved") ? Theme.Mint : s.Status == Session.RepairHint ? Theme.Peach : Theme.Muted);
         if (s.Last != null && s.Last.Report.Count > 0 && ImGui.IsItemHovered()) ImGui.SetTooltip(string.Join("\n", s.Last.Report));
         ImGui.Spacing();
         if (Theme.BigButton(FontAwesomeIcon.WandMagicSparkles, "Save into my mod", !s.Busy)) _confirmSave = true;
@@ -493,7 +493,8 @@ public sealed class MainWindow : Window
             Theme.IconText(FontAwesomeIcon.WandMagicSparkles, $"Write this into {item.ModName}?", Theme.Pink);
             ImGui.TextDisabled(item.RelPath);
             ImGui.Text("The file as it is now is backed up first - the Backups tab puts it back.");
-            if (!s.Edit.Any) Theme.Wrapped("(You haven't changed anything yet - it would save the piece as it is.)", Theme.Peach);
+            if (!s.Edit.Any) Theme.Wrapped(s.NeedsRepair ? "(Nothing else changed - this save just fixes the half-done 8-bone change.)"
+                                                         : "(You haven't changed anything yet - it would save the piece as it is.)", Theme.Peach);
             ImGui.Spacing();
             if (Theme.BigButton(FontAwesomeIcon.Heart, "Yes, save it")) { s.Save(); ImGui.CloseCurrentPopup(); }
             ImGui.SameLine();

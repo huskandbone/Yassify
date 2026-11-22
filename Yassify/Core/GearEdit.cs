@@ -164,6 +164,7 @@ public sealed class EditResult
     public List<string> Report = new();
     public int PointsMoved, PointsReweighted, PointsWithYas, BonesAdded, TableFull, FarFromBody;
     public bool Widened;
+    public bool Repaired;                            // 0.1.1: the file had weights 4 / bone numbers 8 to a point (from 0.1.0); both are 8 now
     /// <summary>Seams with your other pieces: points that took the other piece's weights, points where this one
     /// has jiggle but the other piece has none (the seam can open there), and which pieces.</summary>
     public int SeamMatched, SeamOpen;
@@ -256,6 +257,8 @@ public static class GearEditor
         ["ya_daitai_phys_l"] = "j_asi_a_l",
         ["ya_daitai_phys_r"] = "j_asi_a_r",
     };
+
+    public const string RepairedNote = "Fixed the half-done 8-bone change an older Yassify left in this piece.";
 
     public static bool IsYas(string bone) => bone.StartsWith("iv_") || bone.StartsWith("ya_");
 
@@ -638,7 +641,15 @@ public static class GearEditor
     {
         var res = new EditResult();
         var m = MdlFile.Read(original);
-        if (!s.Any) { res.Bytes = original; return res; }
+        // 0.1.1: a piece 0.1.0 saved with "8 bones" on can keep its weights 4 to a point and its bone numbers 8 to a point
+        // (it missed weights stored as type 5) - the game misreads that. Put right whatever else is asked for, even nothing.
+        if (m.AnyMixedWeights && m.WidenTo8(out _, onlyMixed: true)) res.Repaired = true;
+        if (!s.Any)
+        {
+            res.Bytes = res.Repaired ? m.Write() : original;
+            if (res.Repaired) res.Report.Add(RepairedNote);
+            return res;
+        }
         var (pivots, wholePivot) = Pivots(m);
         bool hairOn = rig != null && s.HairActive;
         bool weights = s.NeedsBody || s.RemoveYas || s.Follows || s.Strokes.Any(k => !k.Shapes) || hairOn;
@@ -1290,6 +1301,7 @@ public static class GearEditor
         res.BonesAdded = m.BoneNames.Count - startBones;
         res.Bytes = m.Write();
         if (res.Widened) res.Report.Add("Points can now hold 8 bones (was 4).");
+        if (res.Repaired) res.Report.Add(RepairedNote);
         if (res.BonesAdded > 0) res.Report.Add($"Added {res.BonesAdded} bone(s): {string.Join(", ", addedBones.OrderBy(x => x))}.");
         if (res.TableFull > 0) res.Report.Add($"{res.TableFull} point(s) lost a bone: that piece already uses 64 bones.");
         if (res.FarFromBody > 0) res.Report.Add($"{res.FarFromBody} point(s) too far from the body to take weights.");

@@ -54,6 +54,10 @@ You'll also need [Penumbra](https://github.com/xivdev/Penumbra), a YAS body (for
 - The **Chest** slider also changes how a top follows your bust size. For a stiff top that keeps its size, use **Keep my chest still in this top** (it writes the game's own switch into that top's mod, with a backup).
 - Backups live in Yassify's settings folder, under `Backups`.
 
+## What's new
+
+**0.1.1** fixes creased skin after *Add YAS jiggle* on many pieces (the "Let a point hold 8 bones" option only did half its job on them). If you saved pieces with 0.1.0, open them again - Yassify tells you which ones need a re-save. The full story is in the [changelog](CHANGELOG.md).
+
 ## Credits
 
 Made by **Husk & Bone**. Yassify's engine - the weights, the fits, the refit and the backups - is the same one as in Tailor, Husk & Bone's bigger gear editor; Yassify is the friendly little slice of it.
@@ -62,4 +66,4 @@ Made by **Husk & Bone**. Yassify's engine - the weights, the fits, the refit and
 
 You need the .NET 10 SDK and Dalamud's dev files. On Windows with XIVLauncher installed, `dotnet build -c Release` in `Yassify/` just works. Anywhere else, unzip [Dalamud's latest.zip](https://goatcorp.github.io/dalamud-distrib/latest.zip) and point `DALAMUD_HOME` at it first. The package lands in `Yassify/bin/Release/Yassify/latest.zip`.
 
-To release: raise `<Version>` in `Yassify/Yassify.csproj` and push to `main` (or press **Run workflow** under Actions > Release). GitHub Actions builds it, makes a release with `latest.zip`, and updates `repo.json` so everyone gets the update. A version that already has a release is skipped.
+To release: raise `<Version>` in `Yassify/Yassify.csproj`, add a `## X.Y.Z` section to `CHANGELOG.md`, and push to `main` (or press **Run workflow** under Actions > Release). GitHub Actions builds it, makes a release with `latest.zip` and that section as its notes, and updates `repo.json` (the same notes show in Dalamud's installer) so everyone gets the update. A version that already has a release is skipped.
