@@ -153,6 +153,7 @@ public sealed class MainWindow : Window
         }
         DrawBanner();
         DrawBodyChip();
+        DrawStrayNotice();
         ImGui.Spacing();
         if (ImGui.BeginTabBar("##ytabs"))
         {
@@ -173,6 +174,86 @@ public sealed class MainWindow : Window
     }
 
     /// <summary>The pink banner: the name in the game's own Jupiter font, a tagline, floating bubbles and hearts.</summary>
+    // ------------------------------------------------------------------ chest switches saved in the wrong file (0.1.2)
+    List<(string dir, string name, int n)> _stray = new();
+    bool _strayBusy, _strayScanned;
+    string _strayNote = "";
+
+    /// <summary>Builds before 0.1.2 saved the chest switch into a default_mod.json - a file a current Penumbra no longer opens
+    /// (it keeps a mod's options in meta.json now), so the switch never counted. Finds the mods with such a switch waiting.</summary>
+    void ScanStray()
+    {
+        _strayScanned = true;
+        string modDir = _p.Penumbra.ModDirectory();
+        if (modDir.Length == 0 || !Directory.Exists(modDir)) return;
+        var names = _p.Penumbra.ModList();
+        _strayBusy = true;
+        Task.Run(() =>
+        {
+            var found = new List<(string, string, int)>();
+            try
+            {
+                foreach (var dir in Directory.EnumerateDirectories(modDir))
+                {
+                    if (!File.Exists(Path.Combine(dir, ModOptions.DefaultFile))) continue;
+                    int n = StraySwitches.Waiting(dir).Count;
+                    string d = Path.GetFileName(dir);
+                    if (n > 0) found.Add((d, names.TryGetValue(d, out var nm) && nm.Length > 0 ? nm : d, n));
+                }
+            }
+            catch (Exception e) { Plugin.Log.Warning(e, "Yassify: couldn't look for chest switches saved by older builds"); }
+            _p.Framework.RunOnFrameworkThread(() => { _stray = found; _strayBusy = false; });
+        });
+    }
+
+    void FixStray()
+    {
+        string modDir = _p.Penumbra.ModDirectory();
+        var todo = _stray.ToList();
+        _strayBusy = true; _strayNote = "";
+        Task.Run(() =>
+        {
+            int done = 0; var failed = new List<string>(); var reload = new List<string>();
+            foreach (var (dir, name, _) in todo)
+            {
+                try
+                {
+                    string root = Path.Combine(modDir, dir);
+                    if (StraySwitches.Fix(root) is not { } f) continue;
+                    _p.Backups.SaveSet(root, dir, name, new Dictionary<string, byte[]> { [ModOptions.MetaFile] = f.now },
+                                       new Dictionary<string, string> { [ModOptions.MetaFile] = BackupStore.Sha(f.before) }, "chest switch an older build saved where Penumbra doesn't look, moved into the mod");
+                    done++; reload.Add(dir);
+                }
+                catch (Exception e) { failed.Add(name); Plugin.Log.Warning(e, $"Yassify: couldn't move the chest switch of {name}"); }
+            }
+            _p.Framework.RunOnFrameworkThread(() =>
+            {
+                foreach (var d in reload) _p.Penumbra.ReloadMod(d);
+                if (reload.Count > 0) _p.Penumbra.RedrawPlayer();
+                _strayNote = failed.Count == 0 ? $"Done - {done} mod{(done == 1 ? "" : "s")} put right (each has a backup on the Backups tab)."
+                                               : $"{done} put right; couldn't change: {string.Join(", ", failed.Take(4))}.";
+                _strayBusy = false;
+                ScanStray();
+            });
+        });
+    }
+
+    void DrawStrayNotice()
+    {
+        if (!_strayScanned && _p.Penumbra.Available) ScanStray();
+        if (_stray.Count == 0 && _strayNote.Length == 0) return;
+        if (_stray.Count > 0)
+        {
+            Theme.Wrapped($"{_stray.Count} mod{(_stray.Count == 1 ? " has" : "s have")} a chest switch an older Yassify saved where your Penumbra no longer looks - " +
+                          "so it never took effect: " + string.Join(", ", _stray.Take(3).Select(x => x.name)) + (_stray.Count > 3 ? $" and {_stray.Count - 3} more." : "."), Theme.Peach);
+            if (_strayBusy) ImGui.TextDisabled("Working...");
+            else if (Theme.SoftButton(FontAwesomeIcon.Magic, "Put them right")) FixStray();
+            if (ImGui.IsItemHovered())
+                ImGui.SetTooltip("Moves those switches into each mod's own options (its meta.json), with a backup.\nNothing is deleted: the old file stays where it is, Penumbra ignores it.\n\n" + string.Join("\n", _stray.Take(20).Select(x => $"{x.name} ({x.n})")));
+        }
+        if (_strayNote.Length > 0) Theme.Wrapped(_strayNote, Theme.Mint);
+    }
+
     void DrawBanner()
     {
         var dl = ImGui.GetWindowDrawList();

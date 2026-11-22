@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.1.2
+
+Fixes the chest switch ("Let it bounce" / "Keep my chest still in this top") doing nothing on a current Penumbra. Please update, then press "Put them right" if Yassify shows it.
+
+What happened
+
+You flipped the chest switch on a top, Yassify said it was saved, and in game nothing changed.
+
+What we found
+
+Penumbra used to keep a mod's options in several files: a default_mod.json and one group file per option group. A current Penumbra keeps them all in the mod's meta.json, and leaves the old files behind renamed .bak. Yassify only knew the older layout. On a mod in the new one it found no options, started a default_mod.json of its own and put the switch there - a file Penumbra no longer opens. So the switch was saved, and never read.
+
+Jiggle, fits, sliders and refits were not affected: those change the model file itself.
+
+What 0.1.2 changes
+
+- The chest switch is saved into meta.json, in the option that brings the top (or the mod's default option). Everything else in meta.json stays as it was.
+- Switches an older Yassify left in a default_mod.json are found when you open the window. One button, "Put them right", moves them into each mod's own options, with a backup. Nothing is deleted - the old file stays where it is, Penumbra ignores it.
+- Refit reads your body's shapes from meta.json only on such mods, never from a leftover old file.
+- Mods still in the older layout work as before.
+
+What to do
+
+1. Update Yassify (Dalamud does it for you, or /xlplugins > Installed > update).
+2. If a line about chest switches shows under the banner, press "Put them right".
+3. No line means nothing was waiting.
+
+This was checked on the option files themselves: a test mod in the new layout, and 23 real mods read and written back unchanged. It hasn't had a full run in game yet - if a switch still doesn't take, please tell us which top.
+
 ## 0.1.1
 
 Fixes creased skin after "Add YAS jiggle". Please update, then re-save the pieces you made with 0.1.0 (see "What to do").

@@ -56,12 +56,28 @@ public static class SizeOptions
         return res;
     }
 
-    /// <summary>The mod's option groups: Penumbra's group_*.json files (in name order); else a "Groups" list in meta.json (some packs).</summary>
+    /// <summary>The mod's options as groups: the one-file layout's "Groups" in meta.json (mod format 4, every mod on a current
+    /// Penumbra), else the older group_*.json files in name order; the default option first, as a group of its own (a body
+    /// pack that simply is one body keeps it there).</summary>
     static IEnumerable<(string name, List<JsonObject> options)> Groups(string modRoot)
     {
-        var files = Directory.Exists(modRoot)
-            ? Directory.EnumerateFiles(modRoot, "group_*.json").OrderBy(f => Path.GetFileName(f), StringComparer.OrdinalIgnoreCase).ToList()
-            : new List<string>();
+        if (!Directory.Exists(modRoot)) yield break;
+        JsonObject? m = null;
+        var meta = Path.Combine(modRoot, "meta.json");
+        if (File.Exists(meta)) { try { m = Parse(File.ReadAllBytes(meta)) as JsonObject; } catch { } }
+        bool oneFile = m?["FileVersion"] is JsonValue fv && fv.TryGetValue<int>(out var ver) && ver >= 4;
+        var files = oneFile ? new List<string>()
+            : Directory.EnumerateFiles(modRoot, "group_*.json").OrderBy(f => Path.GetFileName(f), StringComparer.OrdinalIgnoreCase).ToList();
+        // the default option
+        JsonObject? def = null;
+        if (oneFile || files.Count == 0) def = m?["DefaultData"] as JsonObject;
+        if (def == null && !oneFile)
+        {
+            var dp = Path.Combine(modRoot, "default_mod.json");
+            if (File.Exists(dp)) { try { def = Parse(File.ReadAllBytes(dp)) as JsonObject; } catch { } }
+        }
+        if (def?["Files"] is JsonObject df && df.Count > 0)
+            yield return ("Default", new List<JsonObject> { new JsonObject { ["Name"] = "Default", ["Files"] = df.DeepClone() } });
         if (files.Count > 0)
         {
             foreach (var f in files)
@@ -73,10 +89,6 @@ public static class SizeOptions
             }
             yield break;
         }
-        var meta = Path.Combine(modRoot, "meta.json");
-        if (!File.Exists(meta)) yield break;
-        JsonObject? m = null;
-        try { m = Parse(File.ReadAllBytes(meta)) as JsonObject; } catch { }
         if (m?["Groups"] is not JsonArray arr) yield break;
         foreach (var n in arr)
             if (n is JsonObject g) yield return (g["Name"]?.GetValue<string>() ?? "", Options(g));

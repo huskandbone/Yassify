@@ -52,28 +52,70 @@ public static class Eqp
     }
 }
 
-/// <summary>A Penumbra mod's option files (default_mod.json, group_*.json) as editable JSON.</summary>
+/// <summary>A Penumbra mod's options as editable JSON. Two layouts: the older one, a default_mod.json and a group_*.json per
+/// group; and the one-file one (mod format 4, Penumbra from late August 2026), where meta.json holds it all - "DefaultData"
+/// for the default option and "Groups" for the rest - and the old files are left behind as .bak.
+/// 0.1.2: before, only the older layout was read. On a one-file mod every option edit (the chest's physics switch) went into a new default_mod.json that Penumbra no longer opens, so it did nothing.</summary>
 public sealed class ModOptions
 {
     public sealed record Container(string File, string Name, JsonObject Node);
 
+    public const string MetaFile = "meta.json", DefaultFile = "default_mod.json";
+
     public readonly string Root;
     public readonly Dictionary<string, JsonNode> Files = new(StringComparer.OrdinalIgnoreCase);   // file name -> its JSON
     readonly Dictionary<string, bool> _bom = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>The mod keeps everything in meta.json (mod format 4 and later).</summary>
+    public bool OneFile { get; private set; }
+
+    static (JsonNode? node, bool bom) ReadJson(string path)
+    {
+        var raw = File.ReadAllBytes(path);
+        bool bom = raw.Length >= 3 && raw[0] == 0xEF && raw[1] == 0xBB && raw[2] == 0xBF;
+        return (JsonNode.Parse(Encoding.UTF8.GetString(raw, bom ? 3 : 0, raw.Length - (bom ? 3 : 0))), bom);
+    }
+
+    /// <summary>Whether a mod folder is in the one-file layout: its meta.json says format 4 or later.</summary>
+    public static bool IsOneFile(string modRoot)
+    {
+        try
+        {
+            var p = Path.Combine(modRoot, MetaFile);
+            return File.Exists(p) && ReadJson(p).node is JsonObject o && o["FileVersion"] is JsonValue v && v.TryGetValue<int>(out var ver) && ver >= 4;
+        }
+        catch { return false; }
+    }
 
     public ModOptions(string modRoot)
     {
         Root = modRoot;
+        var metaPath = Path.Combine(modRoot, MetaFile);
+        if (File.Exists(metaPath))
+        {
+            var (mn, mbom) = ReadJson(metaPath);
+            if (mn is JsonObject mo && mo["FileVersion"] is JsonValue fv && fv.TryGetValue<int>(out var ver) && ver >= 4)
+            {
+                OneFile = true; Files[MetaFile] = mo; _bom[MetaFile] = mbom;
+                return;      // a default_mod.json or group file lying beside it is not part of the mod any more
+            }
+        }
         var names = new List<string>();
-        if (File.Exists(Path.Combine(modRoot, "default_mod.json"))) names.Add("default_mod.json");
+        if (File.Exists(Path.Combine(modRoot, DefaultFile))) names.Add(DefaultFile);
         names.AddRange(Directory.EnumerateFiles(modRoot, "group_*.json").Select(f => Path.GetFileName(f)!).OrderBy(n => n, StringComparer.OrdinalIgnoreCase));
         foreach (var n in names)
         {
-            var raw = File.ReadAllBytes(Path.Combine(modRoot, n));
-            bool bom = raw.Length >= 3 && raw[0] == 0xEF && raw[1] == 0xBB && raw[2] == 0xBF;
-            var node = JsonNode.Parse(Encoding.UTF8.GetString(raw, bom ? 3 : 0, raw.Length - (bom ? 3 : 0)));
+            var (node, bom) = ReadJson(Path.Combine(modRoot, n));
             if (node is JsonObject) { Files[n] = node; _bom[n] = bom; }
         }
+    }
+
+    static IEnumerable<Container> GroupContainers(string file, JsonObject group, string fallbackName)
+    {
+        string name = group["Name"]?.GetValue<string>() ?? fallbackName;
+        foreach (var key in new[] { "Options", "Containers" })
+            if (group[key] is JsonArray arr)
+                for (int i = 0; i < arr.Count; i++)
+                    if (arr[i] is JsonObject o) yield return new Container(file, $"{name}: {o["Name"]?.GetValue<string>() ?? $"#{i + 1}"}", o);
     }
 
     /// <summary>Every place that holds Files / Manipulations: the default option, each option of a group, each container of
@@ -82,13 +124,40 @@ public sealed class ModOptions
     {
         foreach (var (file, root) in Files)
         {
-            if (string.Equals(file, "default_mod.json", StringComparison.OrdinalIgnoreCase)) { yield return new Container(file, "Default", (JsonObject)root); continue; }
-            string group = root["Name"]?.GetValue<string>() ?? file;
-            foreach (var key in new[] { "Options", "Containers" })
-                if (root[key] is JsonArray arr)
-                    for (int i = 0; i < arr.Count; i++)
-                        if (arr[i] is JsonObject o) yield return new Container(file, $"{group}: {o["Name"]?.GetValue<string>() ?? $"#{i + 1}"}", o);
+            if (OneFile)
+            {
+                if (root["DefaultData"] is JsonObject dd) yield return new Container(file, "Default", dd);
+                if (root["Groups"] is JsonArray groups)
+                    for (int g = 0; g < groups.Count; g++)
+                        if (groups[g] is JsonObject go)
+                            foreach (var c in GroupContainers(file, go, $"Group {g + 1}")) yield return c;
+                continue;
+            }
+            if (string.Equals(file, DefaultFile, StringComparison.OrdinalIgnoreCase)) { yield return new Container(file, "Default", (JsonObject)root); continue; }
+            foreach (var c in GroupContainers(file, (JsonObject)root, file)) yield return c;
         }
+    }
+
+    /// <summary>The mod's default option (always on with the mod) - where an edit goes when no option brings the file. Made
+    /// when the mod has none (create), in the layout the mod is in.</summary>
+    public Container? Default(bool create = true)
+    {
+        if (OneFile)
+        {
+            var root = (JsonObject)Files[MetaFile];
+            if (root["DefaultData"] is not JsonObject dd)
+            {
+                if (!create) return null;
+                root["DefaultData"] = dd = new JsonObject { ["Files"] = new JsonObject(), ["Manipulations"] = new JsonArray() };
+            }
+            return new Container(MetaFile, "Default", dd);
+        }
+        if (!Files.TryGetValue(DefaultFile, out var def))
+        {
+            if (!create) return null;
+            Files[DefaultFile] = def = new JsonObject { ["Version"] = 0, ["Files"] = new JsonObject(), ["FileSwaps"] = new JsonObject(), ["Manipulations"] = new JsonArray() };
+        }
+        return new Container(DefaultFile, "Default", (JsonObject)def);
     }
 
     static string Norm(string p) => p.Replace('\\', '/').TrimStart('/');
@@ -164,9 +233,79 @@ public sealed class ModOptions
 
     public byte[] Bytes(string file)
     {
-        var text = Files[file].ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+        // meta.json carries the mod's name and description: keep them readable (♥, é ...) the way Penumbra writes them
+        var jo = new JsonSerializerOptions { WriteIndented = true };
+        if (OneFile) jo.Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping;
+        var text = Files[file].ToJsonString(jo);
         var body = Encoding.UTF8.GetBytes(text);
         return _bom.GetValueOrDefault(file) ? new byte[] { 0xEF, 0xBB, 0xBF }.Concat(body).ToArray() : body;
+    }
+}
+
+/// <summary>0.1.2: switches that builds before 0.1.2 saved where a current Penumbra no longer looks. On a one-file mod they
+/// wrote a default_mod.json of their own (nothing in it but EQP edits); this finds those and moves the edits into the
+/// mod's meta.json, where they finally count. The stray file is left alone - Penumbra ignores it.</summary>
+public static class StraySwitches
+{
+    /// <summary>The edits waiting in a mod's stray default_mod.json: only if the mod is one-file, the file is one a build of this engine wrote
+    /// (no files, no swaps, only EQP / EST edits) and meta.json doesn't hold the same edits already.</summary>
+    public static List<JsonObject> Waiting(string modRoot)
+    {
+        var res = new List<JsonObject>();
+        try
+        {
+            var stray = Path.Combine(modRoot, ModOptions.DefaultFile);
+            if (!File.Exists(stray) || !ModOptions.IsOneFile(modRoot)) return res;
+            var raw = File.ReadAllBytes(stray);
+            int skip = raw.Length >= 3 && raw[0] == 0xEF && raw[1] == 0xBB && raw[2] == 0xBF ? 3 : 0;
+            if (JsonNode.Parse(Encoding.UTF8.GetString(raw, skip, raw.Length - skip)) is not JsonObject o) return res;
+            if (o["Files"] is JsonObject f && f.Count > 0) return res;
+            if (o["FileSwaps"] is JsonObject fs && fs.Count > 0) return res;
+            if (o["Manipulations"] is not JsonArray arr || arr.Count == 0) return res;
+            var mine = new List<JsonObject>();
+            foreach (var n in arr)
+            {
+                if (n is not JsonObject mo || mo["Manipulation"] is not JsonObject) return new List<JsonObject>();
+                string type = mo["Type"]?.GetValue<string>() ?? "";
+                if (type != "Eqp" && type != "Est") return new List<JsonObject>();      // not one of these files
+                mine.Add(mo);
+            }
+            var opts = new ModOptions(modRoot);
+            var have = opts.Containers().SelectMany(c => c.Node["Manipulations"] is JsonArray a ? a.OfType<JsonObject>() : Enumerable.Empty<JsonObject>())
+                           .Select(x => x.ToJsonString()).ToHashSet();
+            foreach (var mo in mine) if (!have.Contains(mo.ToJsonString())) res.Add(mo);
+        }
+        catch { res.Clear(); }
+        return res;
+    }
+
+    /// <summary>meta.json with the waiting edits moved in - (new bytes, current bytes) - or null when nothing waits. An EQP
+    /// edit goes to the option that brings a model of that set (as it is saved now), else to the default option; an edit for
+    /// the same thing already there is replaced.</summary>
+    public static (byte[] now, byte[] before)? Fix(string modRoot)
+    {
+        var waiting = Waiting(modRoot);
+        if (waiting.Count == 0) return null;
+        var opts = new ModOptions(modRoot);
+        foreach (var mo in waiting)
+        {
+            var man = (JsonObject)mo["Manipulation"]!;
+            string type = mo["Type"]!.GetValue<string>();
+            ModOptions.Container? c = null;
+            if (man["SetId"] is JsonValue sv && sv.TryGetValue<int>(out var set))
+            {
+                string needle = type == "Eqp" ? $"/e{set:D4}/model/" : $"/h{set:D4}/model/";
+                c = opts.Containers().FirstOrDefault(x => x.Node["Files"] is JsonObject files && files.Any(kv => kv.Key.Replace('\\', '/').Contains(needle, StringComparison.OrdinalIgnoreCase)));
+            }
+            c ??= opts.Default()!;
+            if (c.Node["Manipulations"] is not JsonArray arr) c.Node["Manipulations"] = arr = new JsonArray();
+            // the same switch (type, set, slot / race) already there: the stray one is the newer wish
+            string Key(JsonObject x) => $"{x["Type"]}|{x["Manipulation"]?["SetId"]}|{x["Manipulation"]?["Slot"]}|{x["Manipulation"]?["Race"]}|{x["Manipulation"]?["Gender"]}";
+            for (int i = arr.Count - 1; i >= 0; i--) if (arr[i] is JsonObject old && Key(old) == Key(mo)) arr.RemoveAt(i);
+            arr.Add(mo.DeepClone());
+        }
+        var path = Path.Combine(modRoot, ModOptions.MetaFile);
+        return (opts.Bytes(ModOptions.MetaFile), File.ReadAllBytes(path));
     }
 }
 
@@ -201,13 +340,8 @@ public static class BreastPhysics
         int set = Eqp.TopSetId(gamePaths);
         if (set < 0) return null;
         var opts = new ModOptions(modRoot);
-        var c = opts.Providing(relPath) ?? opts.Containers().FirstOrDefault(x => x.File.Equals("default_mod.json", StringComparison.OrdinalIgnoreCase));
-        if (c == null)
-        {
-            // a mod with no default_mod.json and the file in no option: start one
-            opts.Files["default_mod.json"] = new JsonObject { ["Version"] = 0, ["Files"] = new JsonObject(), ["FileSwaps"] = new JsonObject(), ["Manipulations"] = new JsonArray() };
-            c = opts.Containers().First(x => x.File.Equals("default_mod.json", StringComparison.OrdinalIgnoreCase));
-        }
+        // the option that brings the piece; else the mod's default option (made if it has none)
+        var c = opts.Providing(relPath) ?? opts.Default()!;
         ulong body = opts.BodyEqp(set, c) ?? (Eqp.Entry(eqpFile, set) & Eqp.BodyMask);
         bool isOff = (body & Eqp.BodyDisableBreastPhysics) != 0;
         if (isOff != on) return null;
