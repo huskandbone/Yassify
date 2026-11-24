@@ -58,6 +58,10 @@ You'll also need [Penumbra](https://github.com/xivdev/Penumbra), a YAS body (for
 
 **0.1.1** fixes creased skin after *Add YAS jiggle* on many pieces (the "Let a point hold 8 bones" option only did half its job on them). If you saved pieces with 0.1.0, open them again - Yassify tells you which ones need a re-save. The full story is in the [changelog](CHANGELOG.md).
 
+## Something wrong?
+
+[Open an issue](https://github.com/huskandbone/Yassify/issues/new/choose): the form asks for what helps (your version, the piece and its mod, the lines from `/xllog`). Please don't attach mod files you didn't make; just say which mod it is.
+
 ## Credits
 
 Made by **Husk & Bone**. Yassify's engine - the weights, the fits, the refit and the backups - is the same one as in Tailor, Husk & Bone's bigger gear editor; Yassify is the friendly little slice of it.
