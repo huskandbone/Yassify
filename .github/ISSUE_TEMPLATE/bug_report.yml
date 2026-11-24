@@ -1,0 +1,70 @@
+name: Something's wrong
+description: Yassify did something it shouldn't, or didn't do something it should.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for telling us!
+        **Please don't attach mod files** you didn't make yourself. Just say which mod and where it's from.
+
+  - type: input
+    id: version
+    attributes:
+      label: Yassify version
+      description: In /xlplugins > Installed plugins, next to Yassify.
+      placeholder: "0.1.1"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you saw, and what you expected instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to make it happen again
+      placeholder: |
+        1. Wore ...
+        2. Opened /yassify and clicked ...
+        3. ...
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part?
+      options:
+        - Add YAS jiggle
+        - Sliders or fits
+        - Refit
+        - Save into my mod
+        - Backups
+        - Keep my chest still
+        - The window itself
+        - Not sure
+
+  - type: input
+    id: piece
+    attributes:
+      label: The piece, its mod, and your body
+      description: The item, the mod it's from (name and where you got it), and your body and size.
+      placeholder: "Top from <mod> (from <site>); Neolithe YAS AIO, Chest M"
+
+  - type: textarea
+    id: log
+    attributes:
+      label: Lines from /xllog
+      description: |
+        Type /xllog in game, type Yassify in its filter, and copy the lines from around when it went wrong (red ones especially).
+        If your Windows user name shows up in a path, cut it out.
+      render: text
+
+  - type: textarea
+    id: pictures
+    attributes:
+      label: Screenshots or a short clip
+      description: Drag them in here. Before and after shots help a lot.
