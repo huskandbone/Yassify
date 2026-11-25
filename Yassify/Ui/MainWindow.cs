@@ -153,6 +153,7 @@ public sealed class MainWindow : Window
         }
         DrawBanner();
         DrawBodyChip();
+        DrawSkeletonNotice();
         DrawStrayNotice();
         ImGui.Spacing();
         if (ImGui.BeginTabBar("##ytabs"))
@@ -174,6 +175,60 @@ public sealed class MainWindow : Window
     }
 
     /// <summary>The pink banner: the name in the game's own Jupiter font, a tagline, floating bubbles and hearts.</summary>
+    // ------------------------------------------------------------------ two YAS skeletons on at once (0.1.4)
+    List<YasSkeletons.Source> _skelSources = new();
+    Dictionary<string, string> _skelNames = new();
+    List<string> _skelClash = new();            // the clashing mods, by the name Penumbra shows
+    bool _skelBusy, _skelDismissed;             // dismissed: until the plugin starts again (never saved)
+    DateTime _skelNextScan = DateTime.MinValue, _skelNextCheck = DateTime.MinValue;
+
+    /// <summary>Looks through the mods folder for mods that bring a YAS skeleton (in the background; only reads).</summary>
+    void ScanSkeletons()
+    {
+        _skelNextScan = DateTime.UtcNow.AddMinutes(5);
+        string modDir = _p.Penumbra.ModDirectory();
+        if (modDir.Length == 0 || !Directory.Exists(modDir)) return;
+        var names = _p.Penumbra.ModList();
+        _skelBusy = true;
+        Task.Run(() =>
+        {
+            var found = new List<YasSkeletons.Source>();
+            try { found = YasSkeletons.Scan(modDir); }
+            catch (Exception e) { Plugin.Log.Warning(e, "Yassify: couldn't look for YAS skeletons"); }
+            _p.Framework.RunOnFrameworkThread(() => { _skelSources = found; _skelNames = names; _skelBusy = false; _skelNextCheck = DateTime.MinValue; });
+        });
+    }
+
+    /// <summary>Which of those mods are switched on in your collection right now, with an option that brings the skeleton.</summary>
+    void CheckSkeletons()
+    {
+        _skelNextCheck = DateTime.UtcNow.AddSeconds(3);
+        _skelClash = new();
+        if (_skelSources.Select(x => x.ModDir).Distinct(StringComparer.OrdinalIgnoreCase).Count() < 2) return;
+        if (_p.Penumbra.PlayerCollection() is not { } coll) return;
+        var active = YasSkeletons.Active(_skelSources, d => _p.Penumbra.ModSettings(coll, d));
+        _skelClash = YasSkeletons.Clashing(active).Select(d => _skelNames.TryGetValue(d, out var n) && n.Length > 0 ? n : d).ToList();
+    }
+
+    /// <summary>A friend had two YAS skeletons on and nothing told them why things went wrong. This tells them - and changes
+    /// nothing: which mod to switch off is theirs to decide.</summary>
+    void DrawSkeletonNotice()
+    {
+        if (_skelDismissed || !_p.Penumbra.Available) return;
+        var now = DateTime.UtcNow;
+        if (!_skelBusy && now >= _skelNextScan) ScanSkeletons();
+        if (!_skelBusy && now >= _skelNextCheck) CheckSkeletons();
+        if (_skelClash.Count < 2) return;
+        Theme.IconText(FontAwesomeIcon.ExclamationTriangle, $"{(_skelClash.Count == 2 ? "Two" : _skelClash.Count.ToString())} YAS skeletons are switched on", Theme.Peach, Theme.Peach);
+        Theme.Wrapped(string.Join(_skelClash.Count == 2 ? " and " : ", ", _skelClash) + " each bring a YAS skeleton, and your character can only use one. " +
+                      "Neolithe YAS has the most up-to-date YAS skeleton: keep that one and switch the other mod off in Penumbra. " +
+                      "Using a different YAS skeleton on purpose? Then switch off the one in Neolithe YAS instead.", Theme.Cream);
+        Theme.Wrapped("Things may look fine right now. If jiggle or poses go wrong later, this is why. Yassify won't switch anything off for you.", Theme.Muted);
+        if (ImGui.SmallButton("Got it##skel")) _skelDismissed = true;
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Hides this until you start the game again.\nIt also goes away by itself once only one YAS skeleton is on.");
+        ImGui.Spacing();
+    }
+
     // ------------------------------------------------------------------ chest switches saved in the wrong file (0.1.2)
     List<(string dir, string name, int n)> _stray = new();
     bool _strayBusy, _strayScanned;

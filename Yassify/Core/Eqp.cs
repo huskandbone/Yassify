@@ -58,7 +58,17 @@ public static class Eqp
 /// 0.1.2: before, only the older layout was read. On a one-file mod every option edit (the chest's physics switch) went into a new default_mod.json that Penumbra no longer opens, so it did nothing.</summary>
 public sealed class ModOptions
 {
-    public sealed record Container(string File, string Name, JsonObject Node);
+    public sealed record Container(string File, string Name, JsonObject Node)
+    {
+        /// <summary>The mod's default option (always on with the mod).</summary>
+        public bool IsDefault { get; init; }
+        /// <summary>For an option of a group: the group's and the option's own names (as Penumbra's settings name them), the
+        /// option's place in the group, and the group itself.</summary>
+        public string Group { get; init; } = "";
+        public string Option { get; init; } = "";
+        public int Index { get; init; } = -1;
+        public JsonObject? GroupNode { get; init; }
+    }
 
     public const string MetaFile = "meta.json", DefaultFile = "default_mod.json";
 
@@ -115,7 +125,11 @@ public sealed class ModOptions
         foreach (var key in new[] { "Options", "Containers" })
             if (group[key] is JsonArray arr)
                 for (int i = 0; i < arr.Count; i++)
-                    if (arr[i] is JsonObject o) yield return new Container(file, $"{name}: {o["Name"]?.GetValue<string>() ?? $"#{i + 1}"}", o);
+                    if (arr[i] is JsonObject o)
+                    {
+                        string on = o["Name"]?.GetValue<string>() ?? $"#{i + 1}";
+                        yield return new Container(file, $"{name}: {on}", o) { Group = name, Option = on, Index = i, GroupNode = group };
+                    }
     }
 
     /// <summary>Every place that holds Files / Manipulations: the default option, each option of a group, each container of
@@ -126,14 +140,14 @@ public sealed class ModOptions
         {
             if (OneFile)
             {
-                if (root["DefaultData"] is JsonObject dd) yield return new Container(file, "Default", dd);
+                if (root["DefaultData"] is JsonObject dd) yield return new Container(file, "Default", dd) { IsDefault = true };
                 if (root["Groups"] is JsonArray groups)
                     for (int g = 0; g < groups.Count; g++)
                         if (groups[g] is JsonObject go)
                             foreach (var c in GroupContainers(file, go, $"Group {g + 1}")) yield return c;
                 continue;
             }
-            if (string.Equals(file, DefaultFile, StringComparison.OrdinalIgnoreCase)) { yield return new Container(file, "Default", (JsonObject)root); continue; }
+            if (string.Equals(file, DefaultFile, StringComparison.OrdinalIgnoreCase)) { yield return new Container(file, "Default", (JsonObject)root) { IsDefault = true }; continue; }
             foreach (var c in GroupContainers(file, (JsonObject)root, file)) yield return c;
         }
     }
@@ -150,14 +164,14 @@ public sealed class ModOptions
                 if (!create) return null;
                 root["DefaultData"] = dd = new JsonObject { ["Files"] = new JsonObject(), ["Manipulations"] = new JsonArray() };
             }
-            return new Container(MetaFile, "Default", dd);
+            return new Container(MetaFile, "Default", dd) { IsDefault = true };
         }
         if (!Files.TryGetValue(DefaultFile, out var def))
         {
             if (!create) return null;
             Files[DefaultFile] = def = new JsonObject { ["Version"] = 0, ["Files"] = new JsonObject(), ["FileSwaps"] = new JsonObject(), ["Manipulations"] = new JsonArray() };
         }
-        return new Container(DefaultFile, "Default", (JsonObject)def);
+        return new Container(DefaultFile, "Default", (JsonObject)def) { IsDefault = true };
     }
 
     static string Norm(string p) => p.Replace('\\', '/').TrimStart('/');

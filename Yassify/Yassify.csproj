@@ -1,6 +1,6 @@
 <Project Sdk="Dalamud.NET.Sdk/15.0.0">
   <PropertyGroup>
-    <Version>0.1.3</Version>
+    <Version>0.1.4</Version>
     <Authors>Husk &amp; Bone</Authors>
     <Description>Put YAS jiggle on the outfit you're wearing, refit Neolithe pieces to another body shape, and save into the mod with a backup.</Description>
     <Nullable>enable</Nullable>

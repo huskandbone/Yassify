@@ -175,6 +175,27 @@ public sealed class PenumbraBridge
         try { _pi.GetIpcSubscriber<string, int, int>("Penumbra.RemoveTemporaryModAll.V5").InvokeFunc(Tag, Priority); } catch { }
     }
 
+    /// <summary>The collection your own character uses. Null when Penumbra can't say.</summary>
+    public Guid? PlayerCollection()
+    {
+        try { return _pi.GetIpcSubscriber<int, (bool, bool, (Guid, string))>("Penumbra.GetCollectionForObject.V5").InvokeFunc(0).Item3.Item1; }
+        catch { return null; }
+    }
+
+    /// <summary>A mod's state in a collection: switched on or off, and the options picked (group name -> option names).
+    /// Null when the mod has no settings there, or Penumbra can't say.</summary>
+    public (bool enabled, Dictionary<string, List<string>> settings)? ModSettings(Guid collection, string modDir)
+    {
+        try
+        {
+            var (ec, t) = _pi.GetIpcSubscriber<Guid, string, string, bool, (int, (bool, int, Dictionary<string, List<string>>, bool)?)>("Penumbra.GetCurrentModSettings.V5")
+                             .InvokeFunc(collection, modDir, string.Empty, false);
+            if (ec != 0 || t == null) return null;
+            return (t.Value.Item1, t.Value.Item3 ?? new Dictionary<string, List<string>>());
+        }
+        catch { return null; }
+    }
+
     public void ReloadMod(string modDir)
     {
         try { _pi.GetIpcSubscriber<string, string, int>("Penumbra.ReloadMod.V5").InvokeFunc(modDir, string.Empty); } catch { }
