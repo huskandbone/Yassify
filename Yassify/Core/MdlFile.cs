@@ -548,7 +548,15 @@ public sealed class MdlFile
             if (vb != VertexBufferSize[l]) { why = "vertex buffer size"; return false; }
             pos = IndexOffset[l] + IndexBufferSize[l];
         }
-        if (pos != _headerEnd + Data.Length) { why = "data after the last LOD"; return false; }
+        if (pos != _headerEnd + Data.Length)
+        {
+            // some exporters round the file up with zeros after the last LOD (a third of real mods, every Bibo+ body):
+            // that's padding, and a rebuild simply leaves it off. Anything else there is data this doesn't understand.
+            long from = (long)pos - _headerEnd;
+            if (from < 0 || from > Data.Length) { why = "data after the last LOD"; return false; }
+            for (int i = (int)from; i < Data.Length; i++)
+                if (Data[i] != 0) { why = "data after the last LOD"; return false; }
+        }
         return true;
     }
 
@@ -703,6 +711,7 @@ public sealed class MdlFile
     public ushort[] ReadIndices(int mesh)
     {
         int l = LodOf(mesh);
+        if (l < 0) return Array.Empty<ushort>();
         var me = Meshes[mesh];
         int at = (int)(IndexOffset[l] - _headerEnd + me.StartIndex * 2);
         var res = new ushort[me.IndexCount];
@@ -716,15 +725,24 @@ public sealed class MdlFile
         for (int mi = Lods[lod].MeshIndex; mi < Lods[lod].MeshIndex + Lods[lod].MeshCount; mi++) yield return mi;
     }
 
+    /// <summary>The LOD a mesh belongs to; -1 for a mesh with no vertex data to read. Some exporters write meshes for LOD 1
+    /// and 2 while the header counts one LOD (seen on a real necklace): those read fine when their data is really in the
+    /// file, and count as empty when it isn't - never an index outside the file.</summary>
     public int LodOf(int mesh)
     {
-        for (int l = 0; l < LodCount; l++)
-            if (mesh >= Lods[l].MeshIndex && mesh < Lods[l].MeshIndex + Lods[l].MeshCount) return l;
+        for (int l = 0; l < 3; l++)
+        {
+            if (mesh < Lods[l].MeshIndex || mesh >= Lods[l].MeshIndex + Lods[l].MeshCount) continue;
+            if (l < LodCount) return l;
+            return VertexBufferSize[l] > 0 && VertexOffset[l] >= (uint)_headerEnd
+                && (long)VertexOffset[l] + VertexBufferSize[l] <= (long)_headerEnd + Data.Length ? l : -1;
+        }
         return -1;
     }
 
+    /// <summary>A mesh's vertex element; null when it has none - or when the mesh has no data to read (see LodOf).</summary>
     public VElement? Element(int mesh, VUsage u, int usageIndex = 0)
-        => Meshes[mesh].Elements.Find(e => e.Usage == (byte)u && e.UsageIndex == usageIndex);
+        => LodOf(mesh) < 0 ? null : Meshes[mesh].Elements.Find(e => e.Usage == (byte)u && e.UsageIndex == usageIndex);
 
     int ElementAt(int mesh, VElement e, int v)
     {

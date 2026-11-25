@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.1.3
+
+"Let a point hold 8 bones" now works on many more pieces, and one kind of odd model can no longer trip Yassify up. Nothing to redo - just update.
+
+What happened
+
+On some pieces "Let a point hold 8 bones" (Jiggle > Extras, on by default) quietly did nothing: the piece kept 4 bones a point. YAS jiggle still got added, only with less room for it: each point kept just its 4 strongest bones.
+
+What we found
+
+Some tools that make model files round the file up with empty space at the end. Yassify treated anything after the model's last part as data it didn't understand and left such a file alone, to be safe. Empty space is harmless, though, and it is common: every Bibo+ body has it.
+
+Separately, one necklace turned up that says it has one level of detail and then carries parts for two more. Reading those parts could make Yassify stumble.
+
+What 0.1.3 changes
+
+- Empty space at the end of a model no longer blocks the 8 bones. Anything there that isn't empty still does, as before.
+- Parts a model's own header doesn't count are read safely, or skipped when their data isn't really in the file.
+- Nothing else is different. Pieces that already got 8 bones come out the same as before.
+
+In numbers, on 101 real models (bodies, tops, bottoms, hair, hats, accessories): of the 60 that keep 4 bones a point, 0.1.2 gave the 8 bones to 36 and 0.1.3 gives them to 59. The one left is that necklace, which really does carry extra data. All 101 can have YAS jiggle added and read back correctly.
+
+What to do
+
+1. Update Yassify (Dalamud does it for you, or /xlplugins > Installed > update).
+2. Optional: a piece you saved before keeps working as it is. If you'd like it to have the extra room, open it and press "Save into my mod" again.
+
+This was checked on the model files themselves. It hasn't had a full run in game yet.
+
 ## 0.1.2
 
 Fixes the chest switch ("Let it bounce" / "Keep my chest still in this top") doing nothing on a current Penumbra. Please update, then press "Put them right" if Yassify shows it.
