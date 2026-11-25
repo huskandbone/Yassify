@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.1.4
+
+New: a heads-up when two YAS skeletons are switched on at once.
+
+Why
+
+Your character can only use one skeleton. With two mods switched on that each bring a YAS skeleton, Penumbra picks one of them, and whatever was made for the other runs on a skeleton it wasn't made for. That can look fine for a while, then show up as jiggle or poses going wrong - with nothing to say why.
+
+What Yassify does now
+
+- It looks through your Penumbra mods for ones that bring a YAS skeleton, and checks which of them are switched on in your character's collection, with the option that brings the skeleton picked.
+- If two or more are on for the same race, a note at the top names them. Neolithe YAS has the most up-to-date YAS skeleton, so the advice is to keep that one and switch the other mod off - or, if you use a different one on purpose, to switch off the one in Neolithe YAS.
+- Yassify never switches a mod off for you. "Got it" hides the note until you start the game again, and it goes away by itself once only one YAS skeleton is on.
+- IVCS skeletons, and skeletons for minions, mounts and weapons, don't count.
+
+No note means nothing was found - there is nothing to do.
+
+This was checked on test mods covering each case, and against a real mods folder for what counts as a YAS skeleton. Reading your collection from Penumbra can't be tried outside the game, so that part is new in the wild: if the note shows when it shouldn't, or stays away when it should show, please tell us.
+
 ## 0.1.3
 
 "Let a point hold 8 bones" now works on many more pieces, and one kind of odd model can no longer trip Yassify up. Nothing to redo - just update.
